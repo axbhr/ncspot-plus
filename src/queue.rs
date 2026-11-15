@@ -1,4 +1,5 @@
 use std::cmp::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{Arc, RwLock};
 
 use log::{debug, info};
@@ -8,7 +9,9 @@ use notify_rust::Notification;
 use rand::prelude::*;
 use strum_macros::Display;
 
+use crate::application::ASYNC_RUNTIME;
 use crate::config::Config;
+use crate::events::Event;
 use crate::library::Library;
 use crate::model::playable::Playable;
 use crate::spotify::PlayerEvent;
@@ -27,11 +30,13 @@ pub enum RepeatSetting {
 }
 
 /// Events that are specific to the [Queue].
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 pub enum QueueEvent {
     /// Request the player to 'preload' a track, basically making sure that
     /// transitions between tracks can be uninterrupted.
     PreloadTrackRequest,
+    /// Similar tracks fetched for autoplay.
+    AutoplayLoaded(Vec<Playable>),
 }
 
 /// The queue determines the playback order of [Playable] items, and is also used to control
@@ -43,6 +48,11 @@ pub struct Queue {
     /// The playback order of the queue, as indices into `self.queue`.
     random_order: RwLock<Option<Vec<usize>>>,
     current_track: RwLock<Option<usize>>,
+    /// Index of the first track added by autoplay, if any.
+    autoplay_start: RwLock<Option<usize>>,
+    autoplay_loading: AtomicBool,
+    /// URI and name of the playlist or album the queue was started from.
+    context: RwLock<Option<(String, String)>>,
     spotify: Spotify,
     cfg: Arc<Config>,
     library: Arc<Library>,
@@ -55,6 +65,9 @@ impl Queue {
         Self {
             queue: Arc::new(RwLock::new(queue_state.queue)),
             spotify: spotify.clone(),
+            autoplay_start: RwLock::new(None),
+            autoplay_loading: AtomicBool::new(false),
+            context: RwLock::new(None),
             current_track: RwLock::new(queue_state.current_track),
             random_order: RwLock::new(queue_state.random_order),
             cfg,
@@ -78,6 +91,99 @@ impl Queue {
             Some(order) => order[pos],
             None => pos,
         }
+    }
+
+    pub fn autoplay_start(&self) -> Option<usize> {
+        *self.autoplay_start.read().unwrap()
+    }
+
+    /// Remember where playback started, shown in the cover view and
+    /// recorded as recently played.
+    pub fn set_context(&self, uri: &str, name: &str, cover_url: Option<String>) {
+        *self.context.write().unwrap() = Some((uri.to_string(), name.to_string()));
+        crate::recent::record(uri, name, cover_url);
+    }
+
+    pub fn context_name(&self) -> Option<String> {
+        self.context
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|(_, name)| name.clone())
+    }
+
+    fn reset_autoplay(&self) {
+        *self.autoplay_start.write().unwrap() = None;
+        *self.context.write().unwrap() = None;
+    }
+
+    fn autoplay_enabled(&self) -> bool {
+        crate::settings::get().autoplay && self.get_repeat() == RepeatSetting::None
+    }
+
+    /// Fetch similar tracks in the background, see [QueueEvent::AutoplayLoaded].
+    fn request_autoplay(&self) {
+        if !self.autoplay_enabled() || self.autoplay_loading.swap(true, AtomicOrdering::SeqCst) {
+            return;
+        }
+        let mut recent: Vec<String> = self
+            .queue
+            .read()
+            .unwrap()
+            .iter()
+            .rev()
+            .filter_map(|item| match item {
+                Playable::Track(track) => Some(track.uri.clone()),
+                Playable::Episode(_) => None,
+            })
+            .take(20)
+            .collect();
+        recent.reverse();
+        let Some(seed) = recent.last().cloned() else {
+            self.autoplay_loading.store(false, AtomicOrdering::SeqCst);
+            return;
+        };
+        let context = self
+            .context
+            .read()
+            .unwrap()
+            .as_ref()
+            .map(|(uri, _)| uri.clone())
+            .unwrap_or(seed);
+        let events = self.spotify.events.clone();
+        ASYNC_RUNTIME.get().unwrap().spawn(async move {
+            let tracks = crate::spotify_internal::autoplay_tracks(context, recent).await;
+            events.send(Event::Queue(QueueEvent::AutoplayLoaded(tracks)));
+        });
+    }
+
+    fn append_autoplay(&self, tracks: Vec<Playable>) {
+        self.autoplay_loading.store(false, AtomicOrdering::SeqCst);
+        if tracks.is_empty() {
+            info!("autoplay found no tracks");
+            return;
+        }
+        let stopped = self.next_index().is_none()
+            && matches!(
+                self.spotify.get_current_status(),
+                PlayerEvent::Stopped | PlayerEvent::FinishedTrack
+            );
+        let first = self.queue.read().unwrap().len();
+        self.autoplay_start.write().unwrap().get_or_insert(first);
+        for track in tracks {
+            self.append(track);
+        }
+        if stopped {
+            self.play(first, false, false);
+        }
+    }
+
+    /// All queue indices in play order, and the position of the current
+    /// item in that order.
+    pub fn play_order(&self) -> (Vec<usize>, Option<usize>) {
+        let len = self.queue.read().unwrap().len();
+        let order = (0..len).map(|pos| self.queue_index_at(pos)).collect();
+        (order, self.current_order_pos())
     }
 
     /// The index of the next item in `self.queue` that should be played. None
@@ -245,6 +351,7 @@ impl Queue {
     /// Clear all the items from the queue and stop playback.
     pub fn clear(&self) {
         self.stop();
+        self.reset_autoplay();
 
         let mut q = self.queue.write().unwrap();
         q.clear();
@@ -286,6 +393,7 @@ impl Queue {
         if tracks.is_empty() {
             return;
         }
+        self.reset_autoplay();
         let index = self.append_next(tracks);
         self.play(index, reshuffle, shuffle_index);
     }
@@ -397,7 +505,9 @@ impl Queue {
                 false,
             );
         } else {
+            drop(q);
             self.spotify.stop();
+            self.request_autoplay();
         }
     }
 
@@ -483,8 +593,11 @@ impl Queue {
                     let track = self.queue.read().unwrap()[next_index].clone();
                     debug!("Preloading track {track} as requested by librespot");
                     self.spotify.preload(&track);
+                } else {
+                    self.request_autoplay();
                 }
             }
+            QueueEvent::AutoplayLoaded(tracks) => self.append_autoplay(tracks),
         }
     }
 
@@ -598,6 +711,9 @@ pub(crate) mod tests {
         Queue {
             queue: Arc::new(RwLock::new(tracks)),
             random_order: RwLock::new(None),
+            autoplay_start: RwLock::new(None),
+            autoplay_loading: AtomicBool::new(false),
+            context: RwLock::new(None),
             current_track: RwLock::new(current),
             spotify,
             cfg,

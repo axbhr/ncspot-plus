@@ -121,6 +121,7 @@ impl Worker {
                         Ok(session) => {
                             info!("Librespot session reconnected");
                             self.player.set_session(session.clone());
+                            crate::spotify_internal::set_session(session.clone());
                             self.session = session;
                             failed_attempts = 0;
                             load_failed = false;

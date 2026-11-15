@@ -113,6 +113,19 @@ impl ViewExt for PlaylistView {
             return Ok(CommandResult::Consumed(None));
         }
 
-        self.list.on_command(s, cmd)
+        let result = self.list.on_command(s, cmd);
+        if let Command::Play = cmd {
+            let cover = self
+                .playlist
+                .tracks
+                .as_ref()
+                .and_then(|tracks| tracks.first().and_then(|track| track.cover_url()));
+            self.queue.set_context(
+                &format!("spotify:playlist:{}", self.playlist.id),
+                &self.playlist.name,
+                cover,
+            );
+        }
+        result
     }
 }

@@ -47,7 +47,7 @@ pub enum PlayerEvent {
 /// Wrapper around a worker thread that exposes methods to safely control it.
 #[derive(Clone)]
 pub struct Spotify {
-    events: EventManager,
+    pub(crate) events: EventManager,
     /// The credentials for the currently logged in user, used to authenticate to the Spotify API.
     #[cfg(feature = "mpris")]
     mpris: Arc<std::sync::Mutex<Option<MprisManager>>>,
@@ -246,6 +246,9 @@ impl Spotify {
             unsafe { env::set_var("PULSE_PROP_media.role", "music") };
         }
 
+        #[cfg(feature = "cover")]
+        return Ok(crate::visualizer::tap(backend.1));
+        #[cfg(not(feature = "cover"))]
         Ok(backend.1)
     }
 
@@ -279,6 +282,7 @@ impl Spotify {
             .await
             .expect("Could not create session");
         user_tx.map(|tx| tx.send(session.username()));
+        crate::spotify_internal::set_session(session.clone());
 
         let mixer_factory_opt = librespot_playback::mixer::find(Some(SoftMixer::NAME));
         let factory = mixer_factory_opt.expect("could not find softvol mixer factory");

@@ -37,7 +37,9 @@ impl Playlist {
     }
 
     pub fn load_tracks(&mut self, spotify: &Spotify) {
-        if self.is_loaded() {
+        // Spotify regenerates its own playlists without a new snapshot id.
+        let stale = self.owner_id == "spotify" && crate::spotify_internal::first_load(&self.id);
+        if self.is_loaded() && !stale {
             return;
         }
 
@@ -50,11 +52,22 @@ impl Playlist {
 
     /// All tracks, or `None` if a page failed, leaving them unloaded for a later retry.
     fn get_all_tracks(&self, spotify: &Spotify) -> Option<Vec<Playable>> {
-        let tracks = spotify.api.user_playlist_tracks(&self.id).fetch_all();
-        if tracks.is_none() {
-            warn!("Failed to load the tracks of playlist {}", self.name);
+        if self.owner_id == "spotify"
+            && let Some(tracks) = crate::spotify_internal::playlist_tracks(&self.id)
+        {
+            return Some(tracks);
         }
-        tracks
+        let tracks = spotify.api.user_playlist_tracks(&self.id).fetch_all();
+        match tracks {
+            Some(tracks) if !tracks.is_empty() || self.num_tracks == 0 => Some(tracks),
+            _ => {
+                warn!(
+                    "Web API failed for playlist {}, using the session",
+                    self.name
+                );
+                crate::spotify_internal::playlist_tracks(&self.id)
+            }
+        }
     }
 
     pub fn has_track(&self, track_id: &str) -> bool {
@@ -232,6 +245,10 @@ impl ListItem for Playlist {
             .as_ref()
             .map(|t| t.len())
             .unwrap_or(self.num_tracks);
+        // Session playlists come without a track count.
+        if num_tracks == 0 && self.tracks.is_none() {
+            return saved.to_string();
+        }
 
         format!("{saved}{num_tracks:>4} tracks")
     }
@@ -241,6 +258,8 @@ impl ListItem for Playlist {
 
         if let Some(tracks) = &self.tracks {
             queue.play_all(tracks, true, true);
+            let cover = tracks.first().and_then(|track| track.cover_url());
+            queue.set_context(&format!("spotify:playlist:{}", self.id), &self.name, cover);
         }
     }
 

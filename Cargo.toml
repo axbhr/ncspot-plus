@@ -67,6 +67,11 @@ reqwest = {version = "0.13", features = ["blocking", "json", "socks"]}
 serde = "1.0"
 serde_cbor = "0.11.2"
 serde_json = "1.0"
+bytes = "1"
+http = "1"
+librespot-metadata = "0.8.0"
+rustfft = {version = "6", optional = true}
+base64 = {version = "0.22", optional = true}
 strum = "0.28"
 strum_macros = "0.28"
 tokio = {version = "1", features = ["rt-multi-thread", "sync", "time", "net"]}
@@ -98,7 +103,7 @@ optional = true
 
 [features]
 alsa_backend = ["librespot-playback/alsa-backend"]
-cover = ["image", "ioctl-rs", "viuer"] # Support displaying the album cover
+cover = ["image", "ioctl-rs", "viuer", "rustfft", "base64"] # Support displaying the album cover
 default = ["share_clipboard", "pulseaudio_backend", "mpris", "notify", "crossterm_backend"]
 mpris = ["zbus"] # Allow ncspot to be controlled via MPRIS API
 ncurses_backend = ["cursive/ncurses-backend"]

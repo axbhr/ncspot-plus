@@ -207,6 +207,13 @@ impl ListItem for Album {
                 .map(|track| Playable::Track(track.clone()))
                 .collect();
             queue.play_all(&tracks, true, true);
+            if let Some(id) = &self.id {
+                queue.set_context(
+                    &format!("spotify:album:{id}"),
+                    &self.title,
+                    self.cover_url.clone(),
+                );
+            }
         }
     }
 

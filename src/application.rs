@@ -197,7 +197,10 @@ impl Application {
 
         let libraryview = ui::library::LibraryView::new(queue.clone(), library.clone());
 
+        crate::settings::init(&configuration);
         let queueview = ui::queue::QueueView::new(queue.clone(), library.clone());
+        let foryouview =
+            ui::foryou::ForYouView::new(queue.clone(), library.clone(), &configuration);
 
         #[cfg(feature = "cover")]
         let coverview = ui::cover::CoverView::new(queue.clone(), library.clone(), &configuration);
@@ -217,7 +220,8 @@ impl Application {
         )
         .screen("search", search.with_name("search"))
         .screen("library", libraryview.with_name("library"))
-        .screen("queue", queueview);
+        .screen("queue", queueview)
+        .screen("foryou", foryouview);
 
         #[cfg(feature = "cover")]
         layout.add_screen("cover", coverview.with_name("cover"));

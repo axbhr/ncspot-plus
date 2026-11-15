@@ -81,6 +81,11 @@ pub fn load(theme_cfg: &Option<ConfigTheme>) -> Theme {
         "search_match",
         load_color!(theme_cfg, search_match, Light(Red)),
     );
+    palette.set_color("visualizer", load_color!(theme_cfg, visualizer, Dark(Blue)));
+    palette.set_color(
+        "visualizer_peak",
+        load_color!(theme_cfg, visualizer_peak, Light(Blue)),
+    );
 
     Theme {
         shadow: false,

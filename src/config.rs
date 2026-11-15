@@ -94,6 +94,18 @@ pub struct ConfigValues {
     pub shuffle: Option<bool>,
     pub repeat: Option<queue::RepeatSetting>,
     pub cover_max_scale: Option<f32>,
+    /// Show the upcoming queue next to the cover.
+    pub cover_queue: Option<bool>,
+    /// Share of the cover view width used by the cover (0.3-0.75).
+    pub cover_split: Option<f32>,
+    /// Visualizer style, see `settings::Visual` for the names.
+    pub visualizer: Option<String>,
+    /// Visualizer height in rows.
+    pub visualizer_height: Option<usize>,
+    /// Continue with similar tracks when the queue ends.
+    pub autoplay: Option<bool>,
+    /// Override for Spotify's persisted `browsePage` query hash.
+    pub pathfinder_browse_hash: Option<String>,
     pub playback_state: Option<PlaybackState>,
     pub track_format: Option<TrackFormat>,
     pub notification_format: Option<NotificationFormat>,
@@ -130,6 +142,8 @@ pub struct ConfigTheme {
     pub cmdline: Option<String>,
     pub cmdline_bg: Option<String>,
     pub search_match: Option<String>,
+    pub visualizer: Option<String>,
+    pub visualizer_peak: Option<String>,
 }
 
 /// The ordering that is used when representing a playlist.

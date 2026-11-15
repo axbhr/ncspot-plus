@@ -8,13 +8,31 @@ use cursive::{
     view::Nameable,
     views::NamedView,
 };
-use unicode_width::UnicodeWidthStr;
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     command::{Command, MoveAmount, MoveMode},
     commands::CommandResult,
     traits::{BoxedViewExt, IntoBoxedViewExt, ViewExt},
 };
+
+/// Cut `title` to `width` columns, marking the cut with an ellipsis.
+fn fit(title: &str, width: usize) -> String {
+    if title.width() <= width {
+        return title.to_string();
+    }
+    let mut fitted = String::new();
+    let mut used = 1;
+    for c in title.chars() {
+        used += c.width().unwrap_or(0);
+        if used > width {
+            break;
+        }
+        fitted.push(c);
+    }
+    fitted.push('…');
+    fitted
+}
 
 /// A view that displays other views in a tab layout.
 #[derive(Default)]
@@ -128,12 +146,12 @@ impl View for TabbedView {
                 width += printer.size.x % self.tabs.len();
             }
 
-            let title = tab.name();
+            let title = fit(tab.name(), width.saturating_sub(2));
             let offset = HAlign::Center.get_offset(title.width(), width);
 
             printer.with_color(style, |printer| {
                 printer.print_hline((i * tabwidth, 0), width, " ");
-                printer.print((i * tabwidth + offset, 0), title);
+                printer.print((i * tabwidth + offset, 0), &title);
             });
         }
 
@@ -213,5 +231,16 @@ impl ViewExt for TabbedView {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fit;
+
+    #[test]
+    fn fit_cuts_long_titles() {
+        assert_eq!(fit("Tracks", 8), "Tracks");
+        assert_eq!(fit("Discover New Music", 8), "Discove…");
     }
 }

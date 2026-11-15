@@ -22,16 +22,21 @@ mod library;
 mod model;
 mod panic;
 mod queue;
+mod recent;
 mod serialization;
+mod settings;
 mod sharing;
 mod spotify;
 mod spotify_api;
+mod spotify_internal;
 mod spotify_url;
 mod spotify_worker;
 mod theme;
 mod traits;
 mod ui;
 mod utils;
+#[cfg(feature = "cover")]
+mod visualizer;
 
 #[cfg(unix)]
 mod ipc;
