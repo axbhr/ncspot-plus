@@ -105,6 +105,8 @@ When the queue runs out, about 30 similar tracks are appended, like the
 official clients do. They are based on the playlist or album playback started
 from and the recently played tracks. Autoplay is off while repeat is on.
 
+![Queue with autoplay tracks below the divider](../images/fork/autoplay.webp)
+
 ## Spotify's own playlists
 
 Playlists owned by Spotify (Daily Mix, Discover Weekly, …) are loaded through
