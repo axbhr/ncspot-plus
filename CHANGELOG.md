@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] (fork)
+
+### Added
+
+- Cover view with recently played and queue columns, thumbnails and an audio
+  visualizer with nine styles, color modes and palettes
+- Settings dialog for the cover view (`,`), saved to `cover.toml`
+- For You page on F4 with Spotify's Made For You shelves
+- Autoplay of similar tracks when the queue runs out
+- Spotify-owned playlists load through the librespot session
+
+### Fixed
+
+- Resizing left a gray block over the queue where the old cover was
+- Album art showed through the settings dialog
+- Tab titles ran into each other when many tabs were open
+
 ## [1.5.1]
 
 ### Fixed

@@ -1,3 +1,12 @@
+> [!NOTE]
+> This is a fork of [ncspot](https://github.com/hrkfdn/ncspot) with a
+> "now playing" cover view (queue, recently played, thumbnails, audio
+> visualizer, settings dialog), a For You page, autoplay and loading of
+> Spotify's own playlists. See [doc/fork.md](doc/fork.md). The packages
+> listed below install upstream ncspot; build this fork from source.
+
+![Cover view of this fork](images/fork/cover.webp)
+
 <div align="center" style="text-align:center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="images/logo_text_dark.svg">
